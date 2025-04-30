@@ -1,67 +1,51 @@
-import sys
+import pandas as pd
 from collections import deque
 
-actors = {
-    "Emma Watson": ["Harry Potter and the Order of the Phoenix"],
-    "Brendan Gleeson": ["Harry Potter and the Order of the Phoenix", "Trespass Against Us"],
-    "Michael Fassbender": ["Trespass Against Us", "X-Men: First Class"],
-    "Jennifer Lawrence": ["X-Men: First Class"]
-}
+base_path = "C:/Users/PedroMoreira/OneDrive - BLACK WHEELS/Área de Trabalho/harvard/degrees/degrees/small/"
 
-def build_graph(actors):
-    graph = {}
-    for actor, movies in actors.items():
-        for movie in movies:
-            if movie not in graph:
-                graph[movie] = set()
-            graph[movie].add(actor)
-    return graph
+people_small_df = pd.read_csv(base_path + 'people.csv')
+movies_small_df = pd.read_csv(base_path + 'movies.csv')
+stars_small_df = pd.read_csv(base_path + 'stars.csv')
 
-def degrees_of_separation(graph, start_actor, target_actor):
-    queue = deque([(start_actor, 0)])
-    visited = set([start_actor])
+movies_mapping = dict(zip(movies_small_df['id'], zip(movies_small_df['title'], movies_small_df['year'])))
+people_mapping = dict(zip(people_small_df['id'], people_small_df['name']))
+
+person_movies_mapping = {}
+for _, row in stars_small_df.iterrows():
+    if row['person_id'] not in person_movies_mapping:
+        person_movies_mapping[row['person_id']] = set()
+    person_movies_mapping[row['person_id']].add(row['movie_id'])
+
+def neighbors_for_person(person_id):
+    neighbors = set()
+    for movie_id in person_movies_mapping.get(person_id, []):
+        for _, row in stars_small_df[stars_small_df['movie_id'] == movie_id].iterrows():
+            if row['person_id'] != person_id:
+                neighbors.add((movie_id, row['person_id']))
+    return neighbors
+
+def shortest_path(source, target):
+    if source == target:
+        return []
+
+    queue = deque([((None, source), [])])
+    visited = set([source])
     
     while queue:
-        current_actor, degree = queue.popleft()
+        (prev_person, current_person), path = queue.popleft()
         
-        if current_actor == target_actor:
-            return degree
+        if current_person == target:
+            return path + [(prev_person, current_person)]
         
-        for movie in graph:
-            if current_actor in graph[movie]:
-                for actor in graph[movie]:
-                    if actor not in visited:
-                        visited.add(actor)
-                        queue.append((actor, degree + 1))
+        for movie_id, neighbor in neighbors_for_person(current_person):
+            if neighbor not in visited:
+                visited.add(neighbor)
+                queue.append(((current_person, neighbor), path + [(movie_id, current_person)]))
     
     return None
 
-def main():
-    start_actor = "Emma Watson"
-    target_actor = "Jennifer Lawrence"
-    
-    graph = build_graph(actors)
-    
-    degree = degrees_of_separation(graph, start_actor, target_actor)
-    
-    if degree is None:
-        print(f"Não foi possível encontrar uma conexão entre {start_actor} e {target_actor}.")
-    else:
-        print(f"{start_actor} e {target_actor} estão a {degree} graus de separação.")
-        queue = deque([(start_actor, 0)])
-        visited = set([start_actor])
+source_person_id = 102
+target_person_id = 129
+shortest_path_result = shortest_path(source_person_id, target_person_id)
 
-        path = []
-        while queue:
-            current_actor, degree = queue.popleft()  # Certificando-se de desempacotar corretamente
-            for movie in graph:
-                if current_actor in graph[movie]:
-                    for actor in graph[movie]:
-                        if actor == target_actor:
-                            path.append(f"{current_actor} e {actor} atuaram em {movie}.")
-                            print(f"3 graus de separação.")
-                            print(path)
-                            queue.clear()  # Esvaziando a fila para sair do loop
-                            break
-
-main()
+print(shortest_path_result)
